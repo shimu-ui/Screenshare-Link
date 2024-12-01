@@ -7,7 +7,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-windows-lightgrey.svg)](https://www.microsoft.com)
-[![Author](https://img.shields.io/badge/author-shimuui-orange.svg)](https://github.com/shimuui)
+[![Author](https://img.shields.io/badge/author-shimu--ui-orange.svg)](https://github.com/shimu-ui)
 
 ![SS-Link](docs/logo.png)
 
@@ -195,7 +195,7 @@ pywin32==306
 
 ## 👨‍💻 开发者
 
-- 作者: shimuui
+- 作者: shimu-ui
 - 版本: 1.0.0
 - 许可: MIT License
 
@@ -221,6 +221,6 @@ pywin32==306
 
 <div align="center">
 
-Made with ❤️ by shimuui
+Made with ❤️ by shimu-ui
 
 </div>
