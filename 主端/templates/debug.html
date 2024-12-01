@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>SS-Link 主端 - 调试页面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='debug.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>SS-Link 主端调试页面</h1>
+        
+        <div class="section">
+            <div class="section-title">预览</div>
+            <div class="client-count" id="header-client-count">连接设备: 0</div>
+            <div class="preview-container">
+                <img id="preview" alt="预览" />
+            </div>
+            <div class="window-select">
+                <select id="window-list" class="window-dropdown">
+                    <option value="">全屏模式</option>
+                </select>
+                <button onclick="refreshWindows()" class="refresh-button">刷新窗口列表</button>
+            </div>
+            <div class="control-panel">
+                <button class="button" onclick="startTest()">开始测试</button>
+                <button class="button stop" onclick="stopTest()">停止测试</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">客户端管理</div>
+            <div class="client-panel">
+                <div class="client-section">
+                    <h3>待审核客户端</h3>
+                    <div id="pending-list" class="client-list">
+                        <!-- 待审核客户端列表 -->
+                    </div>
+                </div>
+                
+                <div class="client-section">
+                    <h3>已连接客户端</h3>
+                    <div id="connected-list" class="client-list">
+                        <!-- 已连接客户端列表 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">系统状态</div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">投屏状态</div>
+                    <div class="metric-value" id="sharing-status">未开始</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">连接客户端数</div>
+                    <div class="metric-value" id="metrics-client-count">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">当前FPS</div>
+                    <div class="metric-value" id="current-fps">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">CPU使用率</div>
+                    <div class="metric-value" id="cpu-usage">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">内存使用</div>
+                    <div class="metric-value" id="memory-usage">0 MB</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">黑名单管理</div>
+            <div class="blacklist-container">
+                <div id="blacklist" class="client-list">
+                    <!-- 黑名单列表 -->
+                </div>
+                <div class="blacklist-controls">
+                    <input type="text" id="blacklist-ip" placeholder="输入IP地址">
+                    <button onclick="addToBlacklist()" class="button">添加到黑名单</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">系统日志</div>
+            <div id="log-container" class="log-container">
+                <!-- 日志条目将在这里动态添加 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='debug.js') }}"></script>
+</body>
+</html> 

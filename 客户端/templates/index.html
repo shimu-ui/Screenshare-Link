@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>SS-Link 客户端</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="screen-container">
+        <img id="screen" alt="屏幕共享" style="display: none;" />
+        <div class="controls">
+            <button class="control-button" onclick="toggleFullscreen()">全屏</button>
+            <button class="control-button" onclick="reconnect()">重连</button>
+        </div>
+    </div>
+    <div id="status" class="status-overlay">等待连接...</div>
+    <div id="connection-status" class="status-overlay">
+        连接状态: <span id="status-text" class="status-text status-waiting">等待连接...</span>
+    </div>
+    <div id="device-info" class="status-overlay">
+        设备ID: <span id="device-id">未分配</span>
+    </div>
+    <div class="loading" id="loading"></div>
+    <div class="error-message" id="error-message"></div>
+    <div class="notification" id="notification"></div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // 初始化配置
+        const config = {
+            serverIp: "{{ main_server_ip }}",
+            autoConnect: {{ "true" if auto_connect else "false" }},
+            fullscreen: {{ "true" if fullscreen else "false" }},
+            timeout: {{ timeout }},
+            reconnectionAttempts: {{ reconnection_attempts }}
+        };
+
+        // 初始化客户端
+        document.addEventListener('DOMContentLoaded', () => {
+            const screenContainer = document.getElementById('screen-container');
+            const screenImage = document.getElementById('screen');
+            
+            if (screenContainer && screenImage) {
+                console.log('投屏容器已就绪');
+                initializeClient(config);
+            } else {
+                console.error('找不到投屏容器或图像元素');
+            }
+        });
+
+        // 监听图像加载事件
+        document.getElementById('screen').addEventListener('load', function() {
+            console.log('图像已加载');
+            this.style.display = 'block';
+        });
+
+        // 监听图像错误事件
+        document.getElementById('screen').addEventListener('error', function() {
+            console.error('图像加载失败');
+            this.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

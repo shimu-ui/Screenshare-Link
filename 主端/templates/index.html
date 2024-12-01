@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>SS-Link 主端</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SS-Link 主端</h1>
+            <div class="client-count" id="header-client-count">连接设备: 0</div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="window-select">
+                <select id="window-list" class="window-dropdown">
+                    <option value="">全屏模式</option>
+                </select>
+                <button onclick="refreshWindows()" class="refresh-button">刷新窗口列表</button>
+            </div>
+            
+            <div class="button-group">
+                <button id="start" class="control-button">
+                    <span class="button-icon">▶</span>
+                    <span class="button-text">开始投屏</span>
+                </button>
+                <button id="stop" class="control-button stop">
+                    <span class="button-icon">■</span>
+                    <span class="button-text">停止投屏</span>
+                </button>
+            </div>
+            
+            <div id="status" class="status-panel">
+                <div class="status-icon"></div>
+                <div class="status-text">当前状态: 未开始</div>
+            </div>
+        </div>
+
+        <div class="client-panel">
+            <div class="client-section">
+                <h3>待审核客户端</h3>
+                <div id="pending-list" class="client-list">
+                    <!-- 待审核客户端列表 -->
+                </div>
+            </div>
+            
+            <div class="client-section">
+                <h3>已连接客户端</h3>
+                <div id="connected-list" class="client-list">
+                    <!-- 已连接客户端列表 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="/debug" class="debug-link">调试页面</a>
+            <div class="version">版本 1.0.0</div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化Socket.IO连接
+        const socket = io({
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+            rememberUpgrade: true,
+            timeout: 10000
+        });
+
+        // 更新待审核客户端列表
+        socket.on('new_pending_client', (data) => {
+            const pendingList = document.getElementById('pending-list');
+            const item = document.createElement('div');
+            item.className = 'client-item pending';
+            item.dataset.clientId = data.id;
+            item.innerHTML = `
+                <div class="client-info">
+                    <span class="device-id">${data.device_id}</span>
+                    <span class="client-ip">${data.ip}</span>
+                </div>
+                <div class="client-controls">
+                    <button onclick="approveClient('${data.id}')" class="button approve">同意</button>
+                    <button onclick="rejectClient('${data.id}')" class="button reject">拒绝</button>
+                </div>
+            `;
+            pendingList.appendChild(item);
+        });
+
+        // 更新已连接客户端列表
+        socket.on('client_count', (data) => {
+            const connectedList = document.getElementById('connected-list');
+            const headerCount = document.getElementById('header-client-count');
+            
+            if (headerCount) {
+                headerCount.textContent = `连接设备: ${data.count}`;
+            }
+            
+            if (connectedList && data.clients) {
+                connectedList.innerHTML = '';
+                data.clients.forEach(client => {
+                    const item = document.createElement('div');
+                    item.className = 'client-item connected';
+                    item.innerHTML = `
+                        <div class="client-info">
+                            <span class="device-id">${client.device_id}</span>
+                            <span class="client-ip">${client.ip}</span>
+                        </div>
+                        <div class="client-status">已连接</div>
+                    `;
+                    connectedList.appendChild(item);
+                });
+            }
+        });
+
+        // 客户端管理函数
+        function approveClient(clientId) {
+            socket.emit('approve_client', { client_id: clientId });
+            const item = document.querySelector(`[data-client-id="${clientId}"]`);
+            if (item) {
+                // 禁用按钮，防止重复点击
+                const buttons = item.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                });
+
+                // 显示审核状态
+                const controls = item.querySelector('.client-controls');
+                if (controls) {
+                    // 创建状态元素
+                    const status = document.createElement('span');
+                    status.className = 'status-approved';
+                    status.textContent = '已通过';
+                    
+                    // 使用淡入淡出效果替换按钮
+                    controls.style.opacity = '0';
+                    setTimeout(() => {
+                        controls.innerHTML = '';
+                        controls.appendChild(status);
+                        controls.style.opacity = '1';
+                    }, 300);
+                }
+
+                // 添加淡出动画并移除
+                setTimeout(() => {
+                    item.style.animation = 'fadeOut 0.5s ease forwards';
+                    setTimeout(() => {
+                        item.remove();
+                    }, 500);
+                }, 1000);
+            }
+        }
+
+        function rejectClient(clientId) {
+            socket.emit('reject_client', { client_id: clientId });
+            const item = document.querySelector(`[data-client-id="${clientId}"]`);
+            if (item) {
+                // 禁用按钮，防止重复点击
+                const buttons = item.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                });
+
+                // 显示审核状态
+                const controls = item.querySelector('.client-controls');
+                if (controls) {
+                    // 创建状态元素
+                    const status = document.createElement('span');
+                    status.className = 'status-rejected';
+                    status.textContent = '已拒绝';
+                    
+                    // 使用淡入淡出效果替换按钮
+                    controls.style.opacity = '0';
+                    setTimeout(() => {
+                        controls.innerHTML = '';
+                        controls.appendChild(status);
+                        controls.style.opacity = '1';
+                    }, 300);
+                }
+
+                // 添加淡出动画并移除
+                setTimeout(() => {
+                    item.style.animation = 'fadeOut 0.5s ease forwards';
+                    setTimeout(() => {
+                        item.remove();
+                    }, 500);
+                }, 1000);
+            }
+        }
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
