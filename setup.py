@@ -26,29 +26,62 @@ client = Executable(
     copyright="Copyright © 2024 shimu-ui"
 )
 
+# 需要包含的包
+required_packages = [
+    "flask",
+    "flask_socketio",
+    "flask_cors",
+    "engineio",
+    "socketio",
+    "mss",
+    "PIL",
+    "cv2",
+    "numpy",
+    "win32api",
+    "win32con"
+]
+
+# 需要排除的包
+excluded_packages = [
+    "tkinter",
+    "test",
+    "distutils",
+    "unittest",
+    "email",
+    "http",
+    "xml",
+    "pydoc",
+    "doctest",
+    "argparse",
+    "datetime",
+    "zipfile",
+    "py",
+    "pytest",
+    "_pytest",
+    "pip",
+    "setuptools",
+    "pkg_resources",
+    "multiprocessing"
+]
+
 # 构建选项
 build_options = {
-    "packages": [
-        "flask",
-        "flask_socketio",
-        "flask_cors",
-        "engineio",
-        "socketio",
-        "mss",
-        "PIL",
-        "cv2",
-        "numpy",
-        "win32api",
-        "win32con"
-    ],
+    "packages": required_packages,
+    "excludes": excluded_packages,
     "include_files": [
-        (os.path.join(current_dir, "主端", "static"), "static"),
-        (os.path.join(current_dir, "主端", "templates"), "templates"),
-        (os.path.join(current_dir, "主端", "config.ini"), "config.ini"),
+        (os.path.join(current_dir, "主端", "static"), os.path.join("主端", "static")),
+        (os.path.join(current_dir, "主端", "templates"), os.path.join("主端", "templates")),
+        (os.path.join(current_dir, "主端", "config.ini"), os.path.join("主端", "config.ini")),
+        (os.path.join(current_dir, "客户端", "static"), os.path.join("客户端", "static")),
+        (os.path.join(current_dir, "客户端", "templates"), os.path.join("客户端", "templates")),
+        (os.path.join(current_dir, "客户端", "config.ini"), os.path.join("客户端", "config.ini")),
         (os.path.join(current_dir, "config.ini"), "config.ini"),
     ],
-    "excludes": ["tkinter", "test", "distutils"],
-    "optimize": 2
+    "optimize": 2,  # 使用最高级别的优化
+    "include_msvcr": True,  # 包含 MSVC runtime
+    "zip_include_packages": "*",  # 将所有包压缩到 zip 文件中
+    "zip_exclude_packages": "",  # 不排除任何包的压缩
+    "build_exe": os.path.join("build", "SS-Link-v1.0.0-win64")  # 指定输出目录
 }
 
 setup(
