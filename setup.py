@@ -1,5 +1,9 @@
 import sys
 import os
+
+# 增加递归限制
+sys.setrecursionlimit(5000)
+
 from cx_Freeze import setup, Executable
 
 # 获取当前目录
@@ -15,7 +19,7 @@ print(f"主端favicon.ico存在: {os.path.exists(os.path.join(current_dir, '主�
 print(f"config.ini存在: {os.path.exists(os.path.join(current_dir, 'config.ini'))}")
 
 # 基础包列表
-base_packages = [
+packages = [
     "flask",
     "flask_socketio",
     "flask_cors",
@@ -25,57 +29,46 @@ base_packages = [
     "numpy",
     "werkzeug",
     "jinja2",
-    "http",
     "http.server",
     "socketio",
     "engineio",
-    "email",
     "email.utils",
-    "html",
     "html.parser",
     "json",
     "logging",
-    "urllib",
     "urllib.parse",
-    "urllib.request"
-]
-
-# 主端额外包
-server_packages = base_packages + [
+    "urllib.request",
+    "pickle",
     "mss",
     "win32gui",
     "win32con",
     "win32ui"
 ]
 
-# 获取打包类型
-build_type = os.environ.get("BUILD_TYPE", "").lower()
+print("开始打包...")
 
-if not build_type:
-    print("请指定要打包的程序：")
-    print("set BUILD_TYPE=server && python setup.py build - 打包主端")
-    print("set BUILD_TYPE=client && python setup.py build - 打包客户端")
-    print("set BUILD_TYPE=all && python setup.py build - 打包主端和客户端")
-    sys.exit(1)
-
-print(f"开始打包... (类型: {build_type})")
-
-executables = []
-build_options = {}
-
-# 主端打包配置
-if build_type in ["server", "all"]:
-    print("正在打包主端...")
-    executables.append(
-        Executable(
-            script=os.path.join(current_dir, "主端", "app.py"),
-            base=None,  # 显示控制台窗口
-            target_name="主端.exe",
-            icon=os.path.join(current_dir, "主端", "static", "favicon.ico")
-        )
+# 创建可执行文件配置
+executables = [
+    # 主端
+    Executable(
+        script=os.path.join(current_dir, "主端", "app.py"),
+        base=None,  # 显示控制台窗口
+        target_name="主端.exe",
+        icon=os.path.join(current_dir, "主端", "static", "favicon.ico")
+    ),
+    # 客户端
+    Executable(
+        script=os.path.join(current_dir, "客户端", "app.py"),
+        base=None,  # 显示控制台窗口
+        target_name="客户端.exe",
+        icon=os.path.join(current_dir, "客户端", "static", "favicon.ico")
     )
-    build_options["build_exe"] = {
-        "packages": server_packages,
+]
+
+# 构建选项
+build_options = {
+    "build_exe": {
+        "packages": packages,
         "excludes": [
             "tkinter",
             "unittest",
@@ -89,54 +82,19 @@ if build_type in ["server", "all"]:
             "tk"
         ],
         "include_files": [
-            (os.path.join(current_dir, "主端", "templates"), "templates"),
-            (os.path.join(current_dir, "主端", "static"), "static"),
+            (os.path.join(current_dir, "主端", "templates"), "主端/templates"),
+            (os.path.join(current_dir, "主端", "static"), "主端/static"),
+            (os.path.join(current_dir, "客户端", "templates"), "客户端/templates"),
+            (os.path.join(current_dir, "客户端", "static"), "客户端/static"),
             (os.path.join(current_dir, "config.ini"), "config.ini")
         ],
         "include_msvcr": True,
         "optimize": 2,
-        "build_exe": "dist/主端"
+        "build_exe": "dist/SS-Link",
+        "zip_include_packages": "*",
+        "zip_exclude_packages": ""
     }
-
-# 客户端打包配置
-if build_type in ["client", "all"]:
-    print("正在打包客户端...")
-    executables.append(
-        Executable(
-            script=os.path.join(current_dir, "客户端", "app.py"),
-            base=None,  # 显示控制台窗口
-            target_name="客户端.exe",
-            icon=os.path.join(current_dir, "客户端", "static", "favicon.ico")
-        )
-    )
-    build_options["build_exe_2"] = {
-        "packages": base_packages,
-        "excludes": [
-            "tkinter",
-            "unittest",
-            "xml",
-            "asyncio",
-            "test",
-            "distutils",
-            "lib2to3",
-            "pygame",
-            "tcl",
-            "tk"
-        ],
-        "include_files": [
-            (os.path.join(current_dir, "客户端", "templates"), "templates"),
-            (os.path.join(current_dir, "客户端", "static"), "static"),
-            (os.path.join(current_dir, "config.ini"), "config.ini")
-        ],
-        "include_msvcr": True,
-        "optimize": 2,
-        "build_exe": "dist/客户端"
-    }
-
-if not executables:
-    print(f"错误：无效的打包类型 '{build_type}'")
-    print("有效的类型：server, client, all")
-    sys.exit(1)
+}
 
 # 执行打包
 setup(
