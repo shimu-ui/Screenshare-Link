@@ -58,15 +58,26 @@ python 主端/app.py
 python 客户端/app.py
 ```
 
-### 📦 打包部署
+### 📦 打包程序
 
-使用 cx_Freeze 打包:
+1. 安装打包依赖
 
 ```bash
-python setup.py build
+pip install -r requirements_build.txt
 ```
 
-打包后的文件将在 `build` 目录中生成。
+2. 执行打包
+
+```bash
+# 打包主端
+python build.py 主端
+
+# 打包客户端
+python build.py 客户端
+
+# 或同时打包两者
+python build.py all
+```
 
 ## 💡 使用说明
 
