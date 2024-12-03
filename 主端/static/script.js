@@ -11,6 +11,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isSharing = false;
 
+    // 初始化文件传输
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const selectedFiles = document.getElementById('selectedFiles');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+
+    fileInput.addEventListener('change', () => {
+        const files = Array.from(fileInput.files);
+        selectedFiles.innerHTML = files.map(file => `
+            <div class="selected-file">
+                <span>${file.name}</span> (${formatFileSize(file.size)})
+            </div>
+        `).join('');
+    });
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function updateProgress(file, loaded, total) {
+        const percent = (loaded / total * 100).toFixed(2);
+        progressBar.style.width = percent + '%';
+        progressText.textContent = `${file.name}: ${percent}%`;
+        
+        // 添加渐变色效果
+        const hue = (percent * 1.2); // 120是绿色的色相值
+        progressBar.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
+    }
+
+    function broadcastFiles() {
+        const files = fileInput.files;
+        if (files.length === 0) {
+            alert('请选择要广播的文件');
+            return;
+        }
+
+        Array.from(files).forEach((file, index) => {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // 创建进度条项
+            const progressItem = document.createElement('div');
+            progressItem.className = 'progress-item';
+            progressItem.innerHTML = `
+                <div class="file-info">
+                    <span class="filename">${file.name}</span>
+                    <span class="filesize">(${formatFileSize(file.size)})</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar"></div>
+                    <span class="progress-text">0%</span>
+                </div>
+            `;
+            fileList.appendChild(progressItem);
+
+            const progressBar = progressItem.querySelector('.progress-bar');
+            const progressText = progressItem.querySelector('.progress-text');
+
+            // 使用 XMLHttpRequest 获取上传进度
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total * 100).toFixed(1);
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                    
+                    // 广播进度到客户端
+                    socket.emit('upload_progress', {
+                        filename: file.name,
+                        loaded: e.loaded,
+                        total: e.total,
+                        percent: percent
+                    });
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    progressText.textContent = '完成';
+                    progressBar.style.backgroundColor = '#2ecc71';
+                }
+            };
+
+            xhr.onerror = () => {
+                progressText.textContent = '失败';
+                progressBar.style.backgroundColor = '#e74c3c';
+            };
+
+            xhr.open('POST', '/upload', true);
+            xhr.send(formData);
+        });
+    }
+
+    // 绑定广播按钮事件
+    document.querySelector('.file-upload button').addEventListener('click', broadcastFiles);
+
     // 监听连接数量更新
     socket.on('client_count', (data) => {
         console.log('Client count updated:', data.count);

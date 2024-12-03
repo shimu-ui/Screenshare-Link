@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, send_file
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
 import os
@@ -24,6 +24,9 @@ import threading
 import sys
 from config_manager import Config
 import json
+from werkzeug.utils import secure_filename
+import zipfile
+import io
 
 # 设置日志级别
 logging.basicConfig(
@@ -769,6 +772,63 @@ def handle_get_pending_clients():
             })
     except Exception as e:
         print(f'获取待审核列表失败: {e}')
+
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'zip', 'rar', '7z', 'tar', 'gz'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': '没有文件'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '未选择文件'}), 400
+        
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # 保存文件
+    file.save(file_path)
+    file_size = os.path.getsize(file_path)
+    
+    # 广播文件信息
+    socketio.emit('file_broadcast', {
+        'filename': filename,
+        'url': f'/download/{filename}',
+        'size': file_size
+    })
+    
+    return jsonify({
+        'message': '文件上传成功',
+        'filename': filename,
+        'size': file_size
+    })
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    return send_file(
+        os.path.join(app.config['UPLOAD_FOLDER'], filename),
+        as_attachment=True,
+        download_name=filename
+    )
+
+@socketio.on('broadcast_file')
+def broadcast_file(data):
+    """广播文件到所有客户端"""
+    room = data.get('room')
+    filename = data.get('filename')
+    if room and filename:
+        socketio.emit('file_broadcast', {
+            'filename': filename,
+            'url': f'/download/{filename}'
+        }, room=room)
 
 if __name__ == '__main__':
     port = find_free_port(config.get_int('主端', '默认端口', 5000))

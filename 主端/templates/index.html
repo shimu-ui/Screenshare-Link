@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <title>SS-Link 主端</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
@@ -52,6 +52,27 @@
                 <div id="connected-list" class="client-list">
                     <!-- 已连接客户端列表 -->
                 </div>
+            </div>
+        </div>
+
+        <div class="file-transfer-panel">
+            <div class="file-upload">
+                <label for="fileInput" class="custom-file-upload">
+                    <i class="fa fa-cloud-upload"></i> 选择文件
+                </label>
+                <input type="file" id="fileInput" multiple>
+                <button onclick="broadcastFiles()">
+                    <i class="fa fa-broadcast-tower"></i> 广播文件
+                </button>
+            </div>
+            <div class="selected-files" id="selectedFiles"></div>
+            <div class="file-list">
+                <h3>广播进度</h3>
+                <ul id="fileList"></ul>
+            </div>
+            <div class="transfer-progress">
+                <div class="progress-bar" id="progressBar"></div>
+                <span class="progress-text" id="progressText">0%</span>
             </div>
         </div>
 

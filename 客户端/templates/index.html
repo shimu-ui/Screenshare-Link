@@ -3,15 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <title>SS-Link 客户端</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div id="screen-container">
-        <img id="screen" alt="屏幕共享" style="display: none;" />
+        <canvas id="screen" width="800" height="600"></canvas>
         <div class="controls">
-            <button class="control-button" onclick="toggleFullscreen()">全屏</button>
-            <button class="control-button" onclick="reconnect()">重连</button>
+            <button onclick="toggleFullscreen()" title="全屏">
+                <i class="fas fa-expand"></i>
+            </button>
+            <button onclick="reconnect()" title="重新连接">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+    <div class="file-notification-container">
+        <div class="notification-header">
+            <h3>文件接收</h3>
+            <span id="notification-badge" class="notification-badge">0</span>
+            <button onclick="openDownloadsFolder()" class="open-folder-btn" title="打开下载文件夹">
+                <i class="fas fa-folder-open"></i>
+            </button>
+        </div>
+        <div id="file-notifications" class="file-notifications-list">
+            <!-- 动态添加文件通知 -->
         </div>
     </div>
     <div id="status" class="status-overlay">等待连接...</div>

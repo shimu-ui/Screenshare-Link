@@ -99,6 +99,47 @@ function initSocket(config) {
         }
         updateStatus('投屏已停止');
     });
+
+    // 添加文件接收事件处理
+    socket.on('file_broadcast', (data) => {
+        console.log('收到文件广播:', data);
+        const { filename, url, size } = data;
+        
+        // 创建文件接收通知
+        const notification = document.createElement('div');
+        notification.className = 'file-notification';
+        notification.innerHTML = `
+            <div class="file-info">
+                <i class="fas fa-file"></i>
+                <span class="file-name">${filename}</span>
+                <span class="file-size">(${formatFileSize(size)})</span>
+                <div class="file-actions">
+                    <button onclick="downloadFile('${url}', '${filename}')" class="download-btn">
+                        <i class="fas fa-download"></i> 下载
+                    </button>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" class="close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // 添加到通知区域
+        const notificationArea = document.getElementById('file-notifications');
+        if (notificationArea) {
+            notificationArea.insertBefore(notification, notificationArea.firstChild);
+            
+            // 更新通知计数
+            const badge = document.querySelector('.notification-badge');
+            if (badge) {
+                const count = notificationArea.children.length;
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'inline-block' : 'none';
+            }
+        } else {
+            console.error('找不到通知区域元素');
+        }
+    });
 }
 
 // 图像处理
@@ -223,7 +264,27 @@ function initializeClient(config) {
     }
 }
 
+// 添加文件大小格式化函数
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// 添加文件下载函数
+function downloadFile(url, filename) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // 导出全局函数
 window.toggleFullscreen = toggleFullscreen;
 window.reconnect = reconnect;
 window.initializeClient = initializeClient;
+window.downloadFile = downloadFile;  // 导出下载函数
