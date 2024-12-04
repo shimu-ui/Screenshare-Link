@@ -9,36 +9,72 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
-    <div id="screen-container">
-        <canvas id="screen" width="800" height="600"></canvas>
-        <div class="controls">
-            <button onclick="toggleFullscreen()" title="全屏">
-                <i class="fas fa-expand"></i>
-            </button>
-            <button onclick="reconnect()" title="重新连接">
-                <i class="fas fa-sync-alt"></i>
-            </button>
+    <div class="main-container">
+        <!-- 连接设置面板 -->
+        <div class="connection-panel">
+            <h3>连接设置</h3>
+            <div class="connection-form">
+                <div class="input-group">
+                    <label for="server-ip">主端IP地址:</label>
+                    <input type="text" id="server-ip" 
+                           placeholder="例如: {{ local_ip }}" 
+                           value="{{ main_server_ip }}">
+                </div>
+                <div class="input-group">
+                    <label for="server-port">端口:</label>
+                    <input type="number" id="server-port" 
+                           min="1024" max="65535" 
+                           value="{{ main_server_port }}">
+                </div>
+                <div class="button-group">
+                    <button onclick="connectToServer()" class="primary-button">
+                        <i class="fas fa-plug"></i>
+                        连接
+                    </button>
+                    <button onclick="autoDiscover()" class="secondary-button">
+                        <i class="fas fa-search"></i>
+                        自动发现
+                    </button>
+                </div>
+            </div>
+            <div id="connection-status" class="status-text"></div>
+        </div>
+
+        <!-- 屏幕显示区域 -->
+        <div id="screen-container">
+            <canvas id="screen" width="800" height="600"></canvas>
+            <div class="controls">
+                <button onclick="toggleFullscreen()" title="全屏">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button onclick="reconnect()" title="重新连接">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 状态显示 -->
+        <div class="status-container">
+            <div id="status" class="status-overlay">等待连接...</div>
+            <div id="device-info" class="status-overlay">
+                设备ID: <span id="device-id">未分配</span>
+            </div>
+        </div>
+
+        <!-- 文件通知区域 -->
+        <div class="file-notification-container">
+            <div class="notification-header">
+                <h3>文件接收</h3>
+                <span id="notification-badge" class="notification-badge">0</span>
+                <button onclick="openDownloadsFolder()" class="open-folder-btn">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+            </div>
+            <div id="file-notifications" class="file-notifications-list"></div>
         </div>
     </div>
-    <div class="file-notification-container">
-        <div class="notification-header">
-            <h3>文件接收</h3>
-            <span id="notification-badge" class="notification-badge">0</span>
-            <button onclick="openDownloadsFolder()" class="open-folder-btn" title="打开下载文件夹">
-                <i class="fas fa-folder-open"></i>
-            </button>
-        </div>
-        <div id="file-notifications" class="file-notifications-list">
-            <!-- 动态添加文件通知 -->
-        </div>
-    </div>
-    <div id="status" class="status-overlay">等待连接...</div>
-    <div id="connection-status" class="status-overlay">
-        连接状态: <span id="status-text" class="status-text status-waiting">等待连接...</span>
-    </div>
-    <div id="device-info" class="status-overlay">
-        设备ID: <span id="device-id">未分配</span>
-    </div>
+
+    <!-- 其他UI元素 -->
     <div class="loading" id="loading"></div>
     <div class="error-message" id="error-message"></div>
     <div class="notification" id="notification"></div>

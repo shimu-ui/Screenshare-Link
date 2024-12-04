@@ -11,3 +11,10 @@ numpy==1.24.3
 pywin32==306
 numba==0.56.4
 psutil==5.9.5
+PyJWT==2.8.0
+cryptography==42.0.5
+PyAudio==0.2.13
+wave==0.0.2
+audioop==0.0.1
+opencv-python==4.8.1.78
+ffmpeg-python==0.2.0

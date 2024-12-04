@@ -11,7 +11,17 @@
     <div class="container">
         <div class="header">
             <h1>SS-Link 主端</h1>
-            <div class="client-count" id="header-client-count">连接设备: 0</div>
+            <div class="header-controls">
+                <button class="header-button" onclick="openSettings()">
+                    <i class="fas fa-cog"></i>
+                    设置
+                </button>
+                <button class="header-button" onclick="openHelp()">
+                    <i class="fas fa-question-circle"></i>
+                    帮助
+                </button>
+                <div class="client-count" id="header-client-count">连接设备: 0</div>
+            </div>
         </div>
         
         <div class="control-panel">
@@ -37,17 +47,172 @@
                 <div class="status-icon"></div>
                 <div class="status-text">当前状态: 未开始</div>
             </div>
+            
+            <div class="quality-panel">
+                <h3>画质设置</h3>
+                <div class="quality-controls">
+                    <div class="quality-item">
+                        <label>图像质量</label>
+                        <input type="range" id="quality" min="1" max="100" value="80">
+                        <span class="value">80</span>
+                    </div>
+                    
+                    <div class="quality-item">
+                        <label>分辨率缩放</label>
+                        <input type="range" id="resolution" min="10" max="100" value="100">
+                        <span class="value">100%</span>
+                    </div>
+                    
+                    <div class="quality-item">
+                        <label>帧率限制</label>
+                        <input type="range" id="fps" min="15" max="144" value="60">
+                        <span class="value">60</span>
+                    </div>
+                    
+                    <div class="quality-item">
+                        <label>压缩格式</label>
+                        <select id="compression">
+                            <option value="webp">WebP</option>
+                            <option value="jpeg">JPEG</option>
+                        </select>
+                    </div>
+                    
+                    <div class="quality-item">
+                        <label>优化模式</label>
+                        <select id="optimize-mode">
+                            <option value="quality">画质优先</option>
+                            <option value="balanced">平衡</option>
+                            <option value="performance">性能优先</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="recording-panel">
+                <h3>录制控制</h3>
+                <div class="recording-controls">
+                    <button id="start-recording" class="control-button">
+                        <i class="fas fa-record-vinyl"></i>
+                        开始录制
+                    </button>
+                    
+                    <button id="stop-recording" class="control-button" disabled>
+                        <i class="fas fa-stop-circle"></i>
+                        停止录制
+                    </button>
+                    
+                    <div class="recording-status">
+                        <span id="recording-time">00:00:00</span>
+                        <span id="recording-indicator"></span>
+                    </div>
+                </div>
+                
+                <div class="recording-info">
+                    <div class="info-item">
+                        <i class="fas fa-folder"></i>
+                        <span>保存位置: recordings/</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-file-video"></i>
+                        <span id="recording-size">0 MB</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="client-panel">
-            <div class="client-section">
+        <div class="stats-panel">
+            <div class="stats-header">
+                <h3>系统监控</h3>
+                <div class="stats-controls">
+                    <button onclick="toggleRealtime()" class="stats-button">
+                        <i class="fas fa-sync-alt"></i>
+                        实时更新
+                    </button>
+                    <select id="stats-interval" onchange="updateInterval()">
+                        <option value="1000">1秒</option>
+                        <option value="2000">2秒</option>
+                        <option value="5000" selected>5秒</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <!-- 性能指标 -->
+                <div class="stats-card">
+                    <div class="stats-title">CPU使用率</div>
+                    <div class="stats-value" id="cpu-usage">0%</div>
+                    <canvas id="cpu-chart" class="stats-chart"></canvas>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-title">内存使用</div>
+                    <div class="stats-value" id="memory-usage">0MB</div>
+                    <canvas id="memory-chart" class="stats-chart"></canvas>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-title">帧率</div>
+                    <div class="stats-value" id="fps-counter">0 FPS</div>
+                    <canvas id="fps-chart" class="stats-chart"></canvas>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-title">网络流量</div>
+                    <div class="stats-value" id="network-usage">0 KB/s</div>
+                    <canvas id="network-chart" class="stats-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="stats-details">
+                <div class="stats-section">
+                    <h4>连接统计</h4>
+                    <div class="stats-list">
+                        <div class="stats-item">
+                            <span>当前连接</span>
+                            <span id="current-connections">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>总连接数</span>
+                            <span id="total-connections">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>拒绝连接</span>
+                            <span id="rejected-connections">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-section">
+                    <h4>传输统计</h4>
+                    <div class="stats-list">
+                        <div class="stats-item">
+                            <span>已发送</span>
+                            <span id="total-sent">0 MB</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>已接收</span>
+                            <span id="total-received">0 MB</span>
+                        </div>
+                        <div class="stats-item">
+                            <span>平均延迟</span>
+                            <span id="average-latency">0 ms</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="clients-container">
+            <!-- 待审核客户端 -->
+            <div class="pending-clients">
                 <h3>待审核客户端</h3>
                 <div id="pending-list" class="client-list">
                     <!-- 待审核客户端列表 -->
                 </div>
             </div>
-            
-            <div class="client-section">
+
+            <!-- 已连接客户端 -->
+            <div class="connected-clients">
                 <h3>已连接客户端</h3>
                 <div id="connected-list" class="client-list">
                     <!-- 已连接客户端列表 -->
@@ -76,9 +241,127 @@
             </div>
         </div>
 
+        <div class="remote-panel">
+            <h3>远程控制</h3>
+            <div class="remote-controls">
+                <button id="request-control" class="control-button">
+                    <i class="fas fa-mouse-pointer"></i>
+                    请求控制
+                </button>
+                
+                <button id="release-control" class="control-button" disabled>
+                    <i class="fas fa-hand-paper"></i>
+                    释放控制
+                </button>
+                
+                <div class="control-status">
+                    <span id="control-status-text">未控制</span>
+                </div>
+            </div>
+        </div>
+
         <div class="footer">
             <a href="/debug" class="debug-link">调试页面</a>
             <div class="version">版本 1.0.0</div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>系统设置</h2>
+                <button class="close-button" onclick="closeSettings()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>基本设置</h3>
+                    <div class="setting-item">
+                        <label>自动审核</label>
+                        <input type="checkbox" id="auto-approve">
+                    </div>
+                    <div class="setting-item">
+                        <label>需要密码</label>
+                        <input type="checkbox" id="need-password">
+                    </div>
+                    <div class="setting-item">
+                        <label>默认密码</label>
+                        <input type="password" id="default-password">
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>网络设置</h3>
+                    <div class="setting-item">
+                        <label>超时时间(秒)</label>
+                        <input type="number" id="timeout" min="1" max="60">
+                    </div>
+                    <div class="setting-item">
+                        <label>重连次数</label>
+                        <input type="number" id="reconnect-attempts" min="1" max="10">
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>存储设置</h3>
+                    <div class="setting-item">
+                        <label>录制保存路径</label>
+                        <input type="text" id="recording-path">
+                        <button onclick="selectFolder()">选择</button>
+                    </div>
+                    <div class="setting-item">
+                        <label>自动清理</label>
+                        <input type="checkbox" id="auto-cleanup">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="saveSettings()" class="primary-button">保存</button>
+                <button onclick="closeSettings()" class="secondary-button">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>使用帮助</h2>
+                <button class="close-button" onclick="closeHelp()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h3>快速入门</h3>
+                    <ol>
+                        <li>选择投屏模式(全屏/窗口)</li>
+                        <li>点击"开始投屏"</li>
+                        <li>等待客户端连接</li>
+                        <li>审核通过客户端</li>
+                    </ol>
+                </div>
+                
+                <div class="help-section">
+                    <h3>画质设置</h3>
+                    <ul>
+                        <li>图像质量: 影响清晰度</li>
+                        <li>分辨率: 影响大小</li>
+                        <li>帧率: 影响流畅度</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h3>常见问题</h3>
+                    <div class="faq-item">
+                        <h4>连接失败怎么办?</h4>
+                        <p>检查网络连接,确保在同一局域网内</p>
+                    </div>
+                    <div class="faq-item">
+                        <h4>画面卡顿怎么办?</h4>
+                        <p>降低画质或帧率</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeHelp()" class="primary-button">知道了</button>
+            </div>
         </div>
     </div>
 
