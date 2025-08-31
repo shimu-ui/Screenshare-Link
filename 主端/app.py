@@ -107,7 +107,7 @@ def get_config_path():
 # 修改配置加载
 config = Config(get_config_path())
 
-# 修改socketio配置
+# 修改socketio配置 - 增强连接兼容性
 socketio = SocketIO(
     app, 
     cors_allowed_origins="*",
@@ -121,7 +121,9 @@ socketio = SocketIO(
     reconnection_attempts=config.get_int('网络', '重连次数', 5),
     max_http_buffer_size=1024 * 1024 * 10,
     allow_upgrades=True,  # 允许协议升级
-    transports=['websocket', 'polling']  # 允许降级到polling
+    transports=['polling', 'websocket'],  # 优先使用polling，然后升级到websocket
+    cookie=None,  # 禁用cookie以避免跨域问题
+    path='/socket.io/'  # 明确指定路径
 )
 
 # 全局变量
@@ -301,6 +303,61 @@ class QualitySettings:
 # 创建画质设置实例
 quality_settings = QualitySettings()
 
+# 启动性能监控线程
+def start_performance_monitor():
+    """启动性能监控线程"""
+    def performance_monitor_thread():
+        while True:
+            try:
+                # 获取系统资源使用情况
+                cpu_percent = psutil.cpu_percent()
+                memory_info = psutil.virtual_memory().used
+                
+                # 计算FPS - 如果没有投屏，显示系统默认帧率
+                current_time = time.time()
+                elapsed = current_time - performance_data['last_time']
+                if elapsed >= 1.0:
+                    if is_sharing:
+                        # 投屏时使用实际帧率
+                        current_fps = performance_data['frame_count'] / elapsed
+                        performance_data['frame_count'] = 0
+                    else:
+                        # 没有投屏时显示系统默认帧率（60FPS）
+                        current_fps = 60.0
+                    
+                    performance_data['last_time'] = current_time
+                    
+                    # 计算网络流量（基于已发送的数据）
+                    network_traffic = 0
+                    if hasattr(performance_data, 'total_bytes_sent'):
+                        network_traffic = performance_data.get('total_bytes_sent', 0) / 1024  # KB/s
+                    
+                    # 发送性能数据
+                    print(f"发送性能数据: FPS={current_fps:.1f}, CPU={cpu_percent:.1f}%, Memory={memory_info/1024/1024:.1f}MB, Network={network_traffic:.1f}KB/s, Clients={len(connected_clients)}")
+                    socketio.emit('performance_update', {
+                        'fps': current_fps,
+                        'cpu': cpu_percent,
+                        'memory': memory_info,
+                        'network': network_traffic,
+                        'status': 'running' if is_sharing else 'stopped',
+                        'clients': len(connected_clients)
+                    }, broadcast=True)
+                    
+                    # 重置网络流量计数器
+                    if hasattr(performance_data, 'total_bytes_sent'):
+                        performance_data['total_bytes_sent'] = 0
+
+                time.sleep(1.0)
+            except Exception as e:
+                print(f"性能监控错误: {e}")
+                time.sleep(1.0)
+    
+    # 启动性能监控线程
+    performance_thread = Thread(target=performance_monitor_thread, daemon=True)
+    performance_thread.start()
+    print("性能监控线程已启动")
+    print(f"线程ID: {performance_thread.ident}, 是否活跃: {performance_thread.is_alive()}")
+
 # 添加画质设置接口
 @socketio.on('update_quality')
 def update_quality(data):
@@ -469,6 +526,60 @@ def screen_share_thread(window_id=None):
         except:
             pass
 
+def process_and_send_frame(window_id=None):
+    """处理屏幕截图并发送给客户端"""
+    try:
+        # 获取屏幕截图
+        if window_id:
+            # 窗口模式
+            img = capture_window(int(window_id))
+        else:
+            # 全屏模式
+            img = capture_screen()
+        
+        if img is None:
+            print("截图失败，无法获取图像")
+            return
+            
+        # 调整图像大小和质量
+        img = img.resize((1920, 1080), Image.Resampling.LANCZOS)
+        
+        # 转换为JPEG格式并压缩
+        buffer = BytesIO()
+        img.save(buffer, format='JPEG', quality=85, optimize=True)
+        img_data = buffer.getvalue()
+        
+        # 转换为base64
+        img_base64 = base64.b64encode(img_data).decode('utf-8')
+        
+        # 发送给所有已连接的客户端
+        print(f"发送投屏数据，图像大小: {len(img_data)} 字节，base64长度: {len(img_base64)}")
+        socketio.emit('screen_data', {
+            'image': img_base64,
+            'timestamp': time.time(),
+            'fps': target_fps
+        }, broadcast=True)
+        
+        # 更新性能数据
+        performance_data['frame_count'] += 1
+        
+        # 统计网络流量
+        if not hasattr(performance_data, 'total_bytes_sent'):
+            performance_data['total_bytes_sent'] = 0
+        performance_data['total_bytes_sent'] += len(img_data)
+        
+        current_time = time.time()
+        if current_time - performance_data['last_time'] >= 1.0:
+            performance_data['fps'] = performance_data['frame_count']
+            performance_data['frame_count'] = 0
+            performance_data['last_time'] = current_time
+            
+    except Exception as e:
+        logging.error(f"Frame processing error: {e}")
+        print(f"Frame processing error: {e}")
+        import traceback
+        traceback.print_exc()
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -502,6 +613,50 @@ def handle_connect():
     
     # 生成设备ID
     device_id = get_or_create_device_id(client_ip)
+    
+    # 检查是否已经存在相同IP的已连接客户端，如果有则断开旧连接
+    existing_connected = None
+    for cid, cinfo in connected_clients.items():
+        if cinfo['ip'] == client_ip and cinfo['device_id'] == device_id:
+            existing_connected = cid
+            break
+    
+    if existing_connected:
+        print(f"[Socket.IO] 发现相同IP的已连接客户端，断开旧连接: {existing_connected}")
+        # 从已连接列表中移除
+        connected_clients.pop(existing_connected, None)
+        # 断开旧连接
+        socketio.disconnect(existing_connected)
+        # 立即广播更新客户端列表
+        socketio.emit('client_count', {
+            'count': len(connected_clients),
+            'clients': [{
+                'id': cid,
+                'ip': info['ip'],
+                'device_id': info['device_id']
+            } for cid, info in connected_clients.items()]
+        }, broadcast=True)
+    
+    # 检查是否已经存在相同IP的待审核客户端
+    existing_pending = None
+    for pid, pinfo in pending_clients.items():
+        if pinfo['ip'] == client_ip and pinfo['device_id'] == device_id:
+            existing_pending = pid
+            break
+    
+    # 如果存在相同IP的待审核客户端，移除旧的
+    if existing_pending:
+        print(f"[Socket.IO] 移除重复的待审核客户端: {existing_pending}")
+        pending_clients.pop(existing_pending, None)
+        # 通知前端移除旧的待审核条目
+        emit('remove_pending_client', {
+            'id': existing_pending
+        }, broadcast=True)
+    
+    # 检查当前客户端是否已经连接
+    if client_id in connected_clients:
+        print(f"[Socket.IO] 客户端已连接，跳过待审核: {client_id}")
+        return True
     
     # 添加到待审核列表
     pending_clients[client_id] = {
@@ -621,6 +776,48 @@ def handle_approve_client(data):
         
         print(f"[Socket.IO] 客户端审核通过: {client_id}")
 
+@socketio.on('reconnect_approved')
+def handle_reconnect_approved(data):
+    """处理已认证客户端的重新连接"""
+    client_id = request.sid
+    device_id = data.get('device_id')
+    client_ip = request.remote_addr
+    
+    print(f"[Socket.IO] 已认证客户端重新连接: {client_id} (设备ID: {device_id})")
+    
+    # 直接从待审核列表移除（如果存在）
+    if client_id in pending_clients:
+        pending_clients.pop(client_id)
+        # 通知前端移除待审核条目
+        emit('remove_pending_client', {
+            'id': client_id
+        }, broadcast=True)
+    
+    # 添加到已连接列表
+    connected_clients[client_id] = {
+        'ip': client_ip,
+        'device_id': device_id,
+        'connected_time': time.time()
+    }
+    
+    # 通知客户端连接成功
+    emit('auth_status', {
+        'status': 'approved',
+        'device_id': device_id
+    }, room=client_id)
+    
+    # 广播更新客户端列表
+    socketio.emit('client_count', {
+        'count': len(connected_clients),
+        'clients': [{
+            'id': cid,
+            'ip': info['ip'],
+            'device_id': info['device_id']
+        } for cid, info in connected_clients.items()]
+    }, broadcast=True)
+    
+    print(f"[Socket.IO] 已认证客户端重新连接成功: {client_id} (设备ID: {device_id})")
+
 # 在程序启动时加载黑名单
 load_blacklist()
 
@@ -662,6 +859,32 @@ def retry(max_attempts=3, delay=1):
     return decorator
 
 # 使用重试机制
+@retry(max_attempts=3)
+def capture_screen():
+    """捕获整个屏幕"""
+    try:
+        with mss() as sct:
+            # 捕获主显示器
+            monitor = sct.monitors[1]  # 主显示器
+            print(f"捕获屏幕，显示器信息: {monitor}")
+            screenshot = sct.grab(monitor)
+            print(f"截图成功，尺寸: {screenshot.width}x{screenshot.height}")
+            
+            # 转换为PIL Image
+            img = Image.frombytes(
+                'RGB',
+                (screenshot.width, screenshot.height),
+                screenshot.rgb
+            )
+            print(f"图像转换成功，模式: {img.mode}, 尺寸: {img.size}")
+            return img
+    except Exception as e:
+        logging.error(f"Screen capture error: {e}")
+        print(f"Screen capture error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 @retry(max_attempts=3)
 def capture_window(hwnd):
     """带重试的窗口捕获"""
@@ -847,14 +1070,31 @@ def debug():
 # 添加定清理函数
 def cleanup_stale_connections():
     current_time = time.time()
+    
+    # 清理过期的已连接客户端
     for sid, info in list(connected_clients.items()):
         if current_time - info['connected_time'] > 60:  # 60秒超时
             connected_clients.pop(sid, None)
             print(f'Cleaned up stale connection: {sid}')
     
+    # 清理过期的待审核客户端
+    for sid, info in list(pending_clients.items()):
+        if current_time - info['time'] > 30:  # 30秒超时
+            pending_clients.pop(sid, None)
+            print(f'Cleaned up stale pending client: {sid}')
+            # 通知前端移除过期的待审核条目
+            socketio.emit('remove_pending_client', {
+                'id': sid
+            }, broadcast=True)
+    
     # 更新连接数量
-    emit('client_count', {
-        'count': len(connected_clients)
+    socketio.emit('client_count', {
+        'count': len(connected_clients),
+        'clients': [{
+            'id': cid,
+            'ip': info['ip'],
+            'device_id': info['device_id']
+        } for cid, info in connected_clients.items()]
     }, broadcast=True)
 
 # 每分钟执行一次清理
@@ -958,7 +1198,33 @@ def get_blacklist():
 @socketio.on('disconnect')
 def handle_disconnect():
     """处理客户端断开"""
-    print(f"\n[Socket.IO] 客户端断开: {request.sid}")
+    client_id = request.sid
+    print(f"\n[Socket.IO] 客户端断开: {client_id}")
+    
+    # 从已连接列表中移除
+    if client_id in connected_clients:
+        client_info = connected_clients.pop(client_id)
+        print(f"[Socket.IO] 已连接客户端断开: {client_id} ({client_info['ip']})")
+        
+        # 广播更新连接数量
+        socketio.emit('client_count', {
+            'count': len(connected_clients),
+            'clients': [{
+                'id': cid,
+                'ip': info['ip'],
+                'device_id': info['device_id']
+            } for cid, info in connected_clients.items()]
+        }, broadcast=True)
+    
+    # 从待审核列表中移除
+    if client_id in pending_clients:
+        client_info = pending_clients.pop(client_id)
+        print(f"[Socket.IO] 待审核客户端断开: {client_id} ({client_info['ip']})")
+        
+        # 通知前端移除待审核条目
+        emit('remove_pending_client', {
+            'id': client_id
+        }, broadcast=True)
 
 def get_or_create_device_id(ip):
     """获取或创建设备ID"""
@@ -1006,20 +1272,20 @@ def handle_get_pending_clients():
         print(f'获取待审核列表失败: {e}')
 
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'zip', 'rar', '7z', 'tar', 'gz'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# 文件上传配置
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'zip', 'rar', '7z', 'tar', 'gz'}
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# 文件上传配置
-MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
-ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'zip', 'rar'}
-
 @app.route('/upload', methods=['POST'])
-@require_auth
+# 移除认证要求，因为这是主端自己的文件上传
+# @require_auth
 def upload_file():
     if 'file' not in request.files:
         return jsonify({'error': '没有文件'}), 400
@@ -1046,6 +1312,15 @@ def upload_file():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
+        # 文件上传成功后，自动广播到所有连接的客户端
+        if connected_clients:
+            socketio.emit('file_broadcast', {
+                'filename': filename,
+                'url': f'/download/{filename}',
+                'size': os.path.getsize(file_path)
+            }, broadcast=True)
+            print(f"文件 {filename} 已广播到 {len(connected_clients)} 个客户端")
+        
         return jsonify({
             'message': '文件上传成功',
             'filename': filename,
@@ -1055,9 +1330,10 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# 这个函数已经在上面定义了，移除重复定义
+# def allowed_file(filename):
+#     return '.' in filename and \
+#            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/download/<filename>')
 def download_file(filename):
@@ -1434,6 +1710,23 @@ def ping():
     print(f"\n[Ping] 收到来自 {request.remote_addr} 的ping请求")
     return 'pong'
 
+@app.route('/test_connection')
+def test_connection():
+    """测试连接状态"""
+    return {
+        'status': 'success',
+        'message': '连接正常',
+        'server_time': time.time(),
+        'connected_clients': len(connected_clients),
+        'server_ip': get_local_ip(),
+        'server_port': config.get_int('主端', '默认端口', 5000)
+    }
+
+@app.route('/test')
+def test_page():
+    """连接测试页面"""
+    return render_template('test.html')
+
 if __name__ == '__main__':
     setup_logging()
     try:
@@ -1458,16 +1751,12 @@ if __name__ == '__main__':
         cleanup_timer.start()
         
         # 启动性能监控线程
-        performance_thread = threading.Thread(
-            target=update_performance_metrics, 
-            daemon=True
-        )
-        performance_thread.start()
+        start_performance_monitor()
         
         socketio.run(app, 
                     host='0.0.0.0',
                     port=port,
-                    debug=True,
+                    debug=False,
                     use_reloader=False)
     except Exception as e:
         print(f"启动失败: {e}")

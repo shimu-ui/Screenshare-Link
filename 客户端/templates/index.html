@@ -84,10 +84,10 @@
         // 初始化配置
         const config = {
             serverIp: "{{ main_server_ip }}",
-            autoConnect: {{ "true" if auto_connect else "false" }},
-            fullscreen: {{ "true" if fullscreen else "false" }},
-            timeout: {{ timeout }},
-            reconnectionAttempts: {{ reconnection_attempts }}
+            autoConnect: false,
+            fullscreen: false,
+            timeout: 30000,
+            reconnectionAttempts: 10
         };
 
         // 初始化客户端
@@ -97,7 +97,7 @@
             
             if (screenContainer && screenImage) {
                 console.log('投屏容器已就绪');
-                initializeClient(config);
+                // 不自动连接，等待用户手动点击连接按钮
             } else {
                 console.error('找不到投屏容器或图像元素');
             }

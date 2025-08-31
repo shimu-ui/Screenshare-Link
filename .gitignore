@@ -29,6 +29,22 @@ dist/
 *.db
 *.sqlite3
 
+# 上传文件
+uploads/*.jpg
+uploads/*.png
+uploads/*.gif
+uploads/*.pdf
+uploads/*.txt
+uploads/*.zip
+uploads/*.rar
+uploads/*.7z
+uploads/*.tar
+uploads/*.gz
+
+# 日志文件
+主端/logs/
+客户端/logs/
+
 # IDE
 .idea/
 .vscode/

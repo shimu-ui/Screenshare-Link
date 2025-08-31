@@ -789,6 +789,29 @@ h1 {
     align-items: center;
 }
 
+/* 服务器信息显示 */
+.server-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 15px;
+    background: rgba(52, 152, 219, 0.2);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    min-width: 200px;
+}
+
+.server-ip {
+    color: #3498db;
+    font-weight: 500;
+}
+
+.server-port {
+    color: #95a5a6;
+    font-size: 12px;
+}
+
 .header-button {
     padding: 8px 15px;
     background: rgba(255, 255, 255, 0.1);

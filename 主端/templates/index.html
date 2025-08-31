@@ -6,12 +6,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="{{ url_for('static', filename='connection-fix.js') }}"></script>
+    <script src="{{ url_for('static', filename='connection-diagnostic.js') }}"></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>SS-Link 主端</h1>
             <div class="header-controls">
+                <div class="server-info">
+                    <span class="server-ip" id="server-ip-display">服务器IP: 获取中...</span>
+                    <span class="server-port" id="server-port-display">端口: 5000</span>
+                </div>
                 <button class="header-button" onclick="openSettings()">
                     <i class="fas fa-cog"></i>
                     设置
@@ -366,13 +372,30 @@
     </div>
 
     <script>
-        // 初始化Socket.IO连接
-        const socket = io({
-            transports: ['websocket', 'polling'],
+        // 初始化Socket.IO连接 - 使用动态地址
+        const currentHost = window.location.hostname;
+        const currentPort = window.location.port || '5000';
+        const socketUrl = `http://${currentHost}:${currentPort}`;
+        
+        console.log('主页面连接到Socket.IO服务器:', socketUrl);
+        
+        const socket = io(socketUrl, {
+            transports: ['polling', 'websocket'],  // 优先使用polling
             upgrade: true,
             rememberUpgrade: true,
-            timeout: 10000
+            timeout: 30000,  // 增加超时时间
+            forceNew: true,
+            reconnection: true,
+            reconnectionAttempts: 10,  // 增加重连次数
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            maxReconnectionAttempts: 10,
+            autoConnect: true,
+            path: '/socket.io/'  // 明确指定路径
         });
+        
+        // 将socket实例暴露到全局作用域，供script.js使用
+        window.socket = socket;
 
         // 更新待审核客户端列表
         socket.on('new_pending_client', (data) => {
@@ -391,6 +414,14 @@
                 </div>
             `;
             pendingList.appendChild(item);
+        });
+
+        // 移除待审核客户端
+        socket.on('remove_pending_client', (data) => {
+            const item = document.querySelector(`[data-client-id="${data.id}"]`);
+            if (item) {
+                item.remove();
+            }
         });
 
         // 更新已连接客户端列表
@@ -496,6 +527,40 @@
             }
         }
     </script>
+    
+    <!-- 获取服务器IP地址 -->
+    <script>
+        // 页面加载时获取服务器IP地址
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取服务器IP地址
+            fetch('/get_ip')
+                .then(response => response.json())
+                .then(data => {
+                    const ipDisplay = document.getElementById('server-ip-display');
+                    const portDisplay = document.getElementById('server-port-display');
+                    
+                    if (ipDisplay) {
+                        ipDisplay.textContent = `服务器IP: ${data.ip}`;
+                    }
+                    
+                    if (portDisplay) {
+                        // 从当前URL获取端口号
+                        const port = window.location.port || '5000';
+                        portDisplay.textContent = `端口: ${port}`;
+                    }
+                    
+                    console.log(`服务器信息: ${data.ip}:${window.location.port || '5000'}`);
+                })
+                .catch(error => {
+                    console.error('获取服务器IP失败:', error);
+                    const ipDisplay = document.getElementById('server-ip-display');
+                    if (ipDisplay) {
+                        ipDisplay.textContent = '服务器IP: 获取失败';
+                    }
+                });
+        });
+    </script>
+    
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

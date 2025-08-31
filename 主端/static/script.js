@@ -1,13 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     initializeMedia();
-    console.log('DOM loaded, initializing socket connection...');
+    console.log('DOM loaded, using existing socket connection...');
     
-    const socket = io('http://127.0.0.1:5000', {
-        transports: ['websocket', 'polling'],
-        upgrade: true,
-        rememberUpgrade: true,
-        timeout: 10000,
-    });
+    // 使用HTML中已创建的socket实例
+    const socket = window.socket;
+    if (!socket) {
+        console.error('Socket.IO连接未找到！');
+        return;
+    }
 
     let isSharing = false;
 
@@ -45,13 +45,21 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
     }
 
-    function broadcastFiles() {
+    // 将broadcastFiles函数暴露到全局作用域，这样HTML中的onclick就能找到它
+    window.broadcastFiles = function() {
         const files = fileInput.files;
         if (files.length === 0) {
             alert('请选择要广播的文件');
             return;
         }
 
+        // 不清空已选择的文件显示，只清空进度条
+        selectedFiles.innerHTML = Array.from(files).map(file => `
+            <div class="selected-file">
+                <span>${file.name}</span> (${formatFileSize(file.size)})
+            </div>
+        `).join('');
+        
         Array.from(files).forEach((file, index) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -97,6 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = JSON.parse(xhr.responseText);
                     progressText.textContent = '完成';
                     progressBar.style.backgroundColor = '#2ecc71';
+                    
+                    // 显示广播成功消息
+                    console.log(`文件 ${file.name} 上传并广播成功`);
+                    
+                    // 保持进度条显示，不自动移除
+                    // 用户可以手动刷新页面来清理
                 }
             };
 
@@ -110,17 +124,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 绑定广播按钮事件
-    document.querySelector('.file-upload button').addEventListener('click', broadcastFiles);
+    // 绑定广播按钮事件 - 移除重复绑定，因为HTML中已经有onclick
+    // document.querySelector('.file-upload button').addEventListener('click', broadcastFiles);
 
-    // 监听连接数量更新
+    // 监听连接数量更新 - 由HTML中的处理程序处理
     socket.on('client_count', (data) => {
         console.log('Client count updated:', data.count);
-        document.getElementById('client-count').textContent = `连接设备: ${data.count}`;
         
         // 如果没有设备连接，禁用开始按钮
         const startButton = document.getElementById('start');
-        startButton.disabled = data.count === 0;
+        if (startButton) {
+            startButton.disabled = data.count === 0;
+        }
+        
+        // 更新客户端数量显示
+        const clientCountElement = document.getElementById('header-client-count');
+        if (clientCountElement) {
+            clientCountElement.textContent = `连接设备: ${data.count}`;
+        }
+        
+        // 更新连接统计
+        const currentConnectionsElement = document.getElementById('current-connections');
+        if (currentConnectionsElement) {
+            currentConnectionsElement.textContent = data.count;
+        }
+    });
+    
+    // 监听性能数据更新
+    socket.on('performance_update', (data) => {
+        console.log('Performance data received:', data);
+        
+        // 更新CPU使用率
+        const cpuElement = document.getElementById('cpu-usage');
+        if (cpuElement) {
+            cpuElement.textContent = `${parseFloat(data.cpu).toFixed(1)}%`;
+        }
+        
+        // 更新内存使用
+        const memoryElement = document.getElementById('memory-usage');
+        if (memoryElement) {
+            memoryElement.textContent = `${(data.memory / 1024 / 1024).toFixed(1)} MB`;
+        }
+        
+        // 更新帧率
+        const fpsElement = document.getElementById('fps-counter');
+        if (fpsElement) {
+            fpsElement.textContent = `${parseFloat(data.fps).toFixed(1)} FPS`;
+        }
+        
+        // 更新连接统计
+        const currentConnectionsElement = document.getElementById('current-connections');
+        if (currentConnectionsElement) {
+            currentConnectionsElement.textContent = data.clients;
+        }
+        
+        // 更新总连接数
+        const totalConnectionsElement = document.getElementById('total-connections');
+        if (totalConnectionsElement) {
+            totalConnectionsElement.textContent = data.clients;
+        }
+        
+        // 更新网络流量
+        const networkElement = document.getElementById('network-usage');
+        if (networkElement && data.network !== undefined) {
+            networkElement.textContent = `${parseFloat(data.network).toFixed(1)} KB/s`;
+        }
     });
 
     socket.on('connect', () => {
@@ -195,7 +263,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始状态
     document.getElementById('stop').disabled = true;
     updateStatus('未开始');
-    document.getElementById('client-count').textContent = '连接设备: 0';
+    
+    // 初始化客户端计数显示
+    const clientCountElement = document.getElementById('header-client-count');
+    if (clientCountElement) {
+        clientCountElement.textContent = '连接设备: 0';
+    }
 
     // 初始加载窗口列表
     refreshWindows();
@@ -422,8 +495,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 统计功能
+    // 统计功能 - 暂时禁用图表功能，因为Chart.js库未引入
     function initStats() {
+        // 暂时禁用图表功能
+        console.log('图表功能已禁用，因为Chart.js库未引入');
+        return;
+        
         // 创建图表实例
         const charts = {
             cpu: createChart('cpu-chart'),
@@ -554,63 +631,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStats();
     }
 
-    // 在页面加载时初始化
-    document.addEventListener('DOMContentLoaded', () => {
-        initStats();
-    });
+    // 初始化统计功能
+    initStats();
 
-    // 处理新的连接请求
-    socket.on('connection_request', (data) => {
-        console.log('收到连接请求:', data);
-        const pendingList = document.getElementById('pending-list');
-        
-        // 创建待审核客户端元素
-        const clientElement = document.createElement('div');
-        clientElement.className = 'client-item pending';
-        clientElement.id = `client-${data.client_id}`;
-        clientElement.innerHTML = `
-            <div class="client-info">
-                <span class="device-id">设备ID: ${data.device_id}</span>
-                <span class="ip-address">IP: ${data.ip}</span>
-            </div>
-            <div class="client-actions">
-                <button onclick="approveClient('${data.client_id}')" class="approve-btn">
-                    <i class="fas fa-check"></i> 通过
-                </button>
-                <button onclick="rejectClient('${data.client_id}')" class="reject-btn">
-                    <i class="fas fa-times"></i> 拒绝
-                </button>
-            </div>
-        `;
-        
-        pendingList.appendChild(clientElement);
-    });
+    // 处理新的连接请求 - 由HTML中的处理程序处理
+    // 处理客户端状态更新 - 由HTML中的处理程序处理
 
-    // 处理客户端状态更新
-    socket.on('client_status_update', (data) => {
-        const clientElement = document.getElementById(`client-${data.client_id}`);
-        if (clientElement) {
-            if (data.status === 'approved') {
-                // 移动到已连接列表
-                const connectedList = document.getElementById('connected-list');
-                clientElement.className = 'client-item connected';
-                clientElement.querySelector('.client-actions').remove();
-                connectedList.appendChild(clientElement);
-            } else if (data.status === 'rejected' || data.status === 'disconnected') {
-                // 移除客户端元素
-                clientElement.remove();
-            }
-        }
-    });
-
-    // 审核操作函数
-    function approveClient(clientId) {
-        socket.emit('approve_client', { client_id: clientId });
-    }
-
-    function rejectClient(clientId) {
-        socket.emit('reject_client', { client_id: clientId });
-    }
+    // 审核操作函数 - 由HTML中的函数处理
 });
 
 async function initializeMedia() {

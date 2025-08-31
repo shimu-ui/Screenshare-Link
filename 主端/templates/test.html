@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>连接测试</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Socket.IO 连接测试</h1>
+    
+    <div id="status" class="status info">准备测试连接...</div>
+    
+    <button onclick="testConnection()">测试连接</button>
+    <button onclick="testHTTP()">测试HTTP</button>
+    <button onclick="clearLog()">清除日志</button>
+    
+    <div id="log"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testHTTP() {
+            try {
+                log('开始HTTP连接测试...');
+                const response = await fetch('/ping');
+                const text = await response.text();
+                log(`HTTP测试成功: ${text}`, 'success');
+            } catch (error) {
+                log(`HTTP测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        function testConnection() {
+            log('开始Socket.IO连接测试...');
+            
+            // 获取当前页面信息
+            const currentHost = window.location.hostname;
+            const currentPort = window.location.port || '5000';
+            const socketUrl = `http://${currentHost}:${currentPort}`;
+            
+            log(`连接地址: ${socketUrl}`);
+            log(`当前页面: ${window.location.href}`);
+            log(`Hostname: ${currentHost}`);
+            log(`Port: ${currentPort}`);
+            
+            updateStatus('正在连接...', 'info');
+            
+            // 创建Socket.IO连接
+            const socket = io(socketUrl, {
+                transports: ['polling', 'websocket'],
+                upgrade: true,
+                rememberUpgrade: true,
+                timeout: 10000,
+                forceNew: true,
+                reconnection: false, // 禁用重连以便测试
+                autoConnect: true,
+                path: '/socket.io/'
+            });
+            
+            // 连接事件监听
+            socket.on('connect', () => {
+                log('✅ Socket.IO连接成功!', 'success');
+                updateStatus('连接成功!', 'success');
+                log(`Socket ID: ${socket.id}`);
+                log(`Transport: ${socket.io.engine.transport.name}`);
+            });
+            
+            socket.on('connect_error', (error) => {
+                log(`❌ 连接错误: ${error.message}`, 'error');
+                updateStatus('连接失败', 'error');
+                log(`错误详情: ${JSON.stringify(error)}`);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                log(`🔌 连接断开: ${reason}`, 'info');
+                updateStatus('连接断开', 'info');
+            });
+            
+            socket.on('error', (error) => {
+                log(`🚨 Socket错误: ${error}`, 'error');
+            });
+            
+            // 5秒后如果还没连接成功，显示超时
+            setTimeout(() => {
+                if (!socket.connected) {
+                    log('⏰ 连接超时', 'error');
+                    updateStatus('连接超时', 'error');
+                }
+            }, 5000);
+        }
+        
+        // 页面加载时自动测试
+        window.onload = () => {
+            log('页面加载完成，准备测试...');
+        };
+    </script>
+</body>
+</html>

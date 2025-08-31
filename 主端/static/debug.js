@@ -1,9 +1,16 @@
 // Socket.IO连接
 const socket = io({
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],  // 与主端保持一致，优先使用polling
     upgrade: true,
     rememberUpgrade: true,
-    timeout: 10000
+    timeout: 30000,  // 增加超时时间
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    maxReconnectionAttempts: 10,
+    forceNew: true,
+    path: '/socket.io/'  // 明确指定路径
 });
 
 let isTestRunning = false;
@@ -85,14 +92,31 @@ function updateClientList(clients) {
 // Socket.IO事件处理
 socket.on('connect', () => {
     addLogEntry('已连接到服务器');
+    console.log('调试页面Socket.IO连接成功');
 });
 
-socket.on('disconnect', () => {
-    addLogEntry('与服务器断开连接', 'error');
+socket.on('disconnect', (reason) => {
+    addLogEntry('与服务器断开连接: ' + reason, 'error');
+    console.log('调试页面Socket.IO断开连接:', reason);
     isTestRunning = false;
 });
 
-socket.on('screen_frame', (data) => {
+socket.on('connect_error', (error) => {
+    addLogEntry('连接错误: ' + error.message, 'error');
+    console.error('调试页面Socket.IO连接错误:', error);
+});
+
+socket.on('reconnect', (attemptNumber) => {
+    addLogEntry('重新连接成功 (第' + attemptNumber + '次尝试)');
+    console.log('调试页面Socket.IO重新连接成功:', attemptNumber);
+});
+
+socket.on('reconnect_error', (error) => {
+    addLogEntry('重新连接失败: ' + error.message, 'error');
+    console.error('调试页面Socket.IO重新连接失败:', error);
+});
+
+socket.on('screen_data', (data) => {
     try {
         const preview = document.getElementById('preview');
         if (preview) {
@@ -171,6 +195,13 @@ socket.on('new_pending_client', (data) => {
         return;
     }
     
+    // 检查是否已经存在相同的客户端
+    const existingItem = pendingList.querySelector(`[data-client-id="${data.id}"]`);
+    if (existingItem) {
+        console.log('客户端已存在，跳过重复添加:', data.id);
+        return;
+    }
+    
     const item = document.createElement('div');
     item.className = 'client-item pending';
     item.dataset.clientId = data.id;  // 存储客户端ID
@@ -193,39 +224,46 @@ function approveClient(clientId) {
     socket.emit('approve_client', { client_id: clientId });
     const item = document.querySelector(`[data-client-id="${clientId}"]`);
     if (item) {
-        // 禁用按钮，防止重复点击
-        const buttons = item.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.disabled = true;
-            button.style.opacity = '0.5';
-        });
-
-        // 显示审核状态
-        const controls = item.querySelector('.client-controls');
-        if (controls) {
-            // 创建状态元素
-            const status = document.createElement('span');
-            status.className = 'status-approved';
-            status.textContent = '已通过';
-            
-            // 使用淡入淡出效果替换按钮
-            controls.style.opacity = '0';
-            setTimeout(() => {
-                controls.innerHTML = '';
-                controls.appendChild(status);
-                controls.style.opacity = '1';
-            }, 300);
-        }
-
-        // 添加淡出动画并移除
-        setTimeout(() => {
-            item.style.animation = 'fadeOut 0.5s ease forwards';
-            setTimeout(() => {
-                item.remove();
-            }, 500);
-        }, 1000);  // 等待1秒后开始淡出
+        // 获取客户端信息
+        const deviceId = item.querySelector('.device-id').textContent;
+        const clientIp = item.querySelector('.client-ip').textContent;
+        
+        // 添加到已连接列表
+        addToConnectedList(clientId, deviceId, clientIp);
+        
+        // 从待审核列表移除
+        item.remove();
     }
     addLogEntry(`已批准客户端: ${clientId}`);
+}
+
+// 添加到已连接列表
+function addToConnectedList(clientId, deviceId, clientIp) {
+    const connectedList = document.getElementById('connected-list');
+    if (!connectedList) return;
+    
+    // 检查是否已经存在相同的客户端（基于IP和设备ID）
+    const existingItem = connectedList.querySelector(`[data-client-ip="${clientIp}"][data-device-id="${deviceId}"]`);
+    if (existingItem) {
+        console.log('客户端已存在，跳过重复添加:', clientId, deviceId, clientIp);
+        return;
+    }
+    
+    const item = document.createElement('div');
+    item.className = 'client-item connected';
+    item.dataset.clientId = clientId;
+    item.dataset.clientIp = clientIp;
+    item.dataset.deviceId = deviceId;
+    item.innerHTML = `
+        <div class="client-info">
+            <span class="device-id">${deviceId}</span>
+            <span class="client-ip">${clientIp}</span>
+        </div>
+        <div class="client-status">
+            <span class="status-connected">已连接</span>
+        </div>
+    `;
+    connectedList.appendChild(item);
 }
 
 // 拒绝客户端
@@ -278,6 +316,50 @@ function removeFromPendingList(clientId) {
         item.remove();
     }
 }
+
+// 处理客户端状态更新
+socket.on('client_count', (data) => {
+    console.log('收到客户端数量更新:', data);
+    
+    // 更新客户端数量显示
+    const headerClientCount = document.getElementById('header-client-count');
+    const metricsClientCount = document.getElementById('metrics-client-count');
+    
+    if (headerClientCount) {
+        headerClientCount.textContent = `连接设备: ${data.count}`;
+    }
+    if (metricsClientCount) {
+        metricsClientCount.textContent = data.count;
+    }
+    
+    // 更新已连接客户端列表
+    updateConnectedClientList(data.clients);
+});
+
+// 更新已连接客户端列表
+function updateConnectedClientList(clients) {
+    const connectedList = document.getElementById('connected-list');
+    if (!connectedList) return;
+    
+    // 清空现有列表
+    connectedList.innerHTML = '';
+    
+    // 添加新的客户端（去重）
+    const addedClients = new Set();
+    clients.forEach(client => {
+        const clientKey = `${client.ip}-${client.device_id}`;
+        if (!addedClients.has(clientKey)) {
+            addToConnectedList(client.id, client.device_id, client.ip);
+            addedClients.add(clientKey);
+        }
+    });
+}
+
+// 处理移除待审核客户端
+socket.on('remove_pending_client', (data) => {
+    console.log('移除待审核客户端:', data);
+    removeFromPendingList(data.id);
+});
 
 // 添加到黑名单
 function addToBlacklist() {
